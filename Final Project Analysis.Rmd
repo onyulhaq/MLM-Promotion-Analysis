@@ -49,7 +49,7 @@ theme_set(theme_bw())  # Theme; just my personal preference
 
 ```{r}
 #Enter Data
-df <- read.csv("D:/Data Files/PSYC 575_Multilvl Model/Final project/Promotion Analysis/employee_promotion.csv", header = T, na.strings = "")
+df <- read.csv("D:/Data Files/PSYC 575_Multilvl Model/MLM Promotion Analysis/employee_promotion.csv", header = T, na.strings = "")
 
 df$is_promoted <- as.factor(df$is_promoted) #Make promotion into factor variable
 df$gender <- as.factor(df$gender) #Make gender into factor variable
@@ -81,10 +81,46 @@ barplot(table(df$is_promoted),
 ```
 
 
+##ICC and Design Effect
+
+```{r}
+icc.m <- glmmTMB(is_promoted ~ 1 + (1|region) + (1|department),
+                 data = df)
+
+summary(icc.m)
+
+vc_m0 <- (VarCorr(icc.m))
+
+#ICC Region
+icc.region <- vc_m0[[1]]$region[1,1]/(vc_m0[[1]]$region[1,1] + pi^2 / 3)
+
+#ICC Department 
+icc.department <- vc_m0[[1]]$department[1,1]/(vc_m0[[1]]$department[1,1] + pi^2 / 3)
+
+#ICC Department + Region
+
+icc.department + icc.region
+
+#Deff Region
+deff.region <- (1 - icc.department) + (mean(table(df$region)) - 1) * icc.region
+
+c("ICC region" = icc.region,
+  "Deff region" = deff.region)
+
+#Deff Department
+deff.department <- (1 - icc.region) + (mean(table(df$department)) - 1) * icc.department
+
+c("ICC department" = icc.department,
+  "Deff department" = deff.department)
+```
+
+
+##Power Analysis
+
 ### Model Equations
 Cross-Classified Model 
 
-within cell Variables: gender
+within cell Variables: gender, age, previous year rating, length_of_service, awards won, Avg training score, education
 
 Within Cell Lv-1:
 
@@ -117,6 +153,9 @@ $$
   \right)
 \end{aligned}
 $$
+
+
+
 
 ### Models
 ```{r Gender + Random Slopes}
