@@ -37,7 +37,7 @@ use_git_config(user.name = "onyulhaq", user.email = "onyulhaq@usc.edu")
 
 ```
 
-```{r Library}
+```{r Library, warning=FALSE}
 library(here)  # makes reading data more consistent
 library(tidyverse)  # for data manipulation and plotting
 library(haven)  # for importing SPSS/SAS/Stata data
@@ -56,7 +56,7 @@ theme_set(theme_bw())  # Theme; just my personal preference
 
 ```{r}
 #Enter Data
-df <- read.csv("D:/Data Files/PSYC 575_Multilvl Model/MLM Promotion Analysis/employee_promotion.csv", header = T, na.strings = "")
+df <- read.csv("C:/Users/Haque/Downloads/MLM Promotion Analysis/MLM Promotion Analysis/employee_promotion.csv", header = T, na.strings = "")
 
 df$is_promoted <- as.factor(df$is_promoted) #Make promotion into factor variable
 df$gender <- as.factor(df$gender) #Make gender into factor variable
@@ -107,6 +107,7 @@ cor.df <- df %>%
   select(no_of_trainings,age, previous_year_rating, length_of_service, awards_won, avg_training_score)
 cor(x = cor.df, use = "complete.obs")
 
+cor(gende)
 ```
 
 ```{r Promoted}
@@ -201,6 +202,9 @@ m0 <- glmmTMB(is_promoted ~ gender + (gender|department) + (gender|region),
             family = binomial("logit"),
             REML = T)
 summary(m0)
+
+#Effect size
+r.squaredGLMM(m0)
 ```
 
 ```{r Everything}
@@ -211,6 +215,9 @@ m1 <- glmmTMB(is_promoted ~ gender + education + age + no_of_trainings + awards_
             family = binomial("logit"),
             REML = T)
 summary(m1)
+
+#Effect size
+r.squaredGLMM(m1)
 ```
 
 
@@ -222,6 +229,8 @@ m2 <- glmmTMB(is_promoted ~ education + age + no_of_trainings + awards_won +
             family = binomial("logit"),
             REML = T)
 summary(m2)
+
+#Effect size
 r.squaredGLMM(m2)
 ```
 
@@ -233,11 +242,6 @@ msummary(list("Unconditional" = unconditional,
               "Everything but Gender" = m2))
 ```
 
-### Effect size
-
-```{r}
-
-```
 
 
 ### Plot of Predictors on Promotion Rates**
@@ -250,7 +254,3 @@ m1_plots <- plot_model(m1,
 m1_plots
 ```
 
-###Interpretations
-
-
-A preliminary analysis indicates that there is no gender difference in promotion rates. For a female, the predicted log odds of being commended was -1.72. In comparison to females from the same department and the same region, males were associated with a decrease in log odds of .1. The estimate department level deviation in log-odds for being promoted was .35. The association of gender varied by log-odds of .23 for departments. Likewise, the association of gender varied by log-odds of .18 for regions.
