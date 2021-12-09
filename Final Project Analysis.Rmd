@@ -16,7 +16,12 @@ knitr::opts_chunk$set(echo = TRUE)
 The HR team stored data of promotion cycle last year, which consists of details of all the employees in the company working last year and also if they got promoted or not, but every time this process gets delayed due to so many details available for each employee - it gets difficult to compare and decide.
 
 Data Dictionary
-• employeeid: Unique ID for the employee • department: Department of employee • region: Region of employment (unordered) • education: Education Level • gender: Gender of Employee • recruitmentchannel: Channel of recruitment for employee
+• employeeid: Unique ID for the employee 
+• department: Department of employee 
+• region: Region of employment (unordered) 
+• education: Education Level 
+• gender: Gender of Employee 
+• recruitmentchannel: Channel of recruitment for employee
 • no_ of_ trainings: no of other trainings completed in the previous year on soft skills, technical skills, etc.
 • age: Age of Employee
 • previous_ year_ rating: Employee Rating for the previous year
@@ -43,6 +48,8 @@ library(MuMIn)  # for R^2
 library(sjPlot)  # for plotting effects
 library(emmeans)  # for marginal means
 library(modelsummary)  # for making tables
+library(mice) #Missing Data
+library(mitml) # missing Data
 theme_set(theme_bw())  # Theme; just my personal preference
 ```
 
@@ -53,8 +60,23 @@ df <- read.csv("D:/Data Files/PSYC 575_Multilvl Model/MLM Promotion Analysis/emp
 
 df$is_promoted <- as.factor(df$is_promoted) #Make promotion into factor variable
 df$gender <- as.factor(df$gender) #Make gender into factor variable
+df$education <- factor(df$education, levels = c("Below Secondary", "Bachelor's", "Master's & above")) #Make gender into factor variable
 ```
 
+###Missing Data
+```{r}
+psych::describe(df)
+
+pMiss <- function(x){sum(is.na(x))/length(x)*100} #function to find percentage
+apply(df,2,pMiss)
+```
+
+```{r}
+## Compute the unique response patterns:
+pats <- mice::md.pattern(df,
+                         rotate.names = TRUE)
+pats
+```
 
 ###Descriptives
 There are two level 2 units in this data set: Departments and Region
@@ -65,6 +87,8 @@ table(df$department) #List of departments and their sizes
 length(table(df$department)) # No. of department clusters
 min(table(df$department)) # Size of smallest department cluster size
 max(table(df$department)) # Size of largest department cluster size
+mean(table(df$department)) #Avg size of cluster
+sd(table(df$department))
 
 
 #Region
@@ -72,8 +96,18 @@ table(df$region) #List of region and their sizes
 length(table(df$region)) # No. of region clusters
 min(table(df$region)) # Size of smallest region cluster size
 max(table(df$region)) # Size of largest region cluster size
+mean(table(df$region)) # avg size of region
 ```
 
+
+```{r Correlations}
+#Correlations among continuous predictors
+#subset relevant columns
+cor.df <- df %>% 
+  select(no_of_trainings,age, previous_year_rating, length_of_service, awards_won, avg_training_score)
+cor(x = cor.df, use = "complete.obs")
+
+```
 
 ```{r Promoted}
 barplot(table(df$is_promoted),
@@ -84,12 +118,15 @@ barplot(table(df$is_promoted),
 ##ICC and Design Effect
 
 ```{r}
-icc.m <- glmmTMB(is_promoted ~ 1 + (1|region) + (1|department),
-                 data = df)
+#Unconditional Model
+unconditional <- glmmTMB(is_promoted ~ 1 + (1|region) + (1|department),
+                         family = binomial("logit"),
+                         data = df)
 
-summary(icc.m)
+summary(unconditional)
 
-vc_m0 <- (VarCorr(icc.m))
+#Store Variances in object
+vc_m0 <- (VarCorr(unconditional))
 
 #ICC Region
 icc.region <- vc_m0[[1]]$region[1,1]/(vc_m0[[1]]$region[1,1] + pi^2 / 3)
@@ -128,7 +165,7 @@ $$
   \begin{aligned}
     \text{promotion}_{i(j,k)} & \sim \text{Bernoulli}(\mu_{i(j,k)}) \\
     \eta_{i(j,k)} & = \text{logit}(\mu_{i(j,k)}) \\
-    \eta_{i(j,k)} & = \beta_{0(j,k)} + \beta_{1(j,k)} \text{gender}_{i(j,k)}
+    \eta_{i(j,k)} & = \beta_{0(j,k)} + \beta_{1(j,k)} \text{gender}_{i(j,k)} + \beta_{2(j,k)} \text{education}_{i(j,k)} + \beta_{3(j,k)} \text{no_of_trainings}_{i(j,k)} + \beta_{4(j,k)} \text{no_of_trainings}_{i(j,k)} + \beta_{5(j,k)} \text{age}_{i(j,k)} + \beta_{6(j,k)} \text{previous_year_rating}_{i(j,k)} + \beta_{7(j,k)} \text{length_of_service}_{i(j,k)} + \beta_{8(j,k)} \text{awards_on}_{i(j,k)} +  \beta_{9(j,k)} \text{avg_training_score}_{i(j,k)}
   \end{aligned}
 $$
 Lv-2:
@@ -166,19 +203,51 @@ m0 <- glmmTMB(is_promoted ~ gender + (gender|department) + (gender|region),
 summary(m0)
 ```
 
+```{r Everything}
+m1 <- glmmTMB(is_promoted ~ gender + education + age + no_of_trainings + awards_won +
+                avg_training_score + length_of_service + previous_year_rating +
+                (gender|department) + (gender|region),
+            data = df,
+            family = binomial("logit"),
+            REML = T)
+summary(m1)
+```
+
+
+```{r}
+m2 <- glmmTMB(is_promoted ~ education + age + no_of_trainings + awards_won +
+                avg_training_score + length_of_service + previous_year_rating +
+                (gender|department) + (gender|region),
+            data = df,
+            family = binomial("logit"),
+            REML = T)
+summary(m2)
+r.squaredGLMM(m2)
+```
+
 ### Table of Model Coefficients**
 ```{r}
-msummary(list("m0" = m0))
+msummary(list("Unconditional" = unconditional,
+              "Gender + Random Slopes" = m0,
+              "Everything" = m1,
+              "Everything but Gender" = m2))
 ```
+
+### Effect size
+
+```{r}
+
+```
+
 
 ### Plot of Predictors on Promotion Rates**
 ```{r}
-m0_plots <- plot_model(m0,
+m1_plots <- plot_model(m1,
     type = "pred",
     show.data = TRUE, jitter = 0.05,
     title = "", dot.size = 0.3
 )
-m0_plots
+m1_plots
 ```
 
 ###Interpretations
